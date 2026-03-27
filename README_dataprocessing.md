@@ -1,14 +1,12 @@
-
-
 ## Data processing
 
-构建一个纯净、无未来函数、无幸存者偏差的美国 S&P 500 股票面板数据集（Panel Data），作为后续多因子机器学习模型（如 XGBoost、LSTM）的底层特征库。
+构建一个纯净、无未来函数、无幸存者偏差的美国 S&P 500 股票面板数据集（Panel Data），作为后续多因子模型的特征库。
 
 ---
 
 ## 1. 数据来源 (Data Sources)
 
-本项目的所有原始数据均提取自 **WRDS (Wharton Research Data Services)** 平台，涵盖 2015 年至 2025 年的十年期数据：
+所有原始数据均提取自 **WRDS (Wharton Research Data Services)** 平台，涵盖 2015 年至 2025 年的十年期数据：
 
 - **`daily_stock.csv` (CRSP 数据库)**: 包含全市场股票的日度交易数据（收盘价、收益率、交易量等），唯一识别码为 `PERMNO`。
 
@@ -22,7 +20,7 @@
 
 ---
 
-## 2. 数据处理流水线 (Pipeline Logic & Rationale)
+## 2. 数据处理流水线 (Pipeline Logic)
 
 ### Step 1: 数据格式标准化
 
@@ -36,19 +34,19 @@
 
 - **Why**：历史上公司会重组、改名或更换代码。单纯的表连接会可能会有错误，必须根据有效的时间区间连接。
 
-### Step 3: 财务数据“换发身份证”
+### Step 3: 财务数据对齐
 
 - **操作**：将 Compustat 的 `GVKEY` 转换为 CRSP 的 `PERMNO`，并**严格要求**财报的发布日（`rdq`）必须落在该 `GVKEY` 对应的连结有效时间段内。
 
 - **Why**：确保量价数据和财务数据能够在同一套代码体系（`PERMNO`）。
 
-### Step 4: 核心合并 —— Point-in-Time (PIT) 频率对齐
+### Step 4:  频率对齐
 
 - **操作**：使用 Pandas 的 `merge_asof(direction='backward')`，在日度量价数据上，向历史方向滚动匹配最近一次发布的季度财报数据。
 
 - **Why**：量化回测需要注意**未来函数 (Look-ahead Bias)**。如果直接按自然月份合并，模型可能会在 1 月份偷看到 3 月份才公布的年报。向后填充机制确保了模型在每一天只能看到当时市场上真实公开的财务信息。
 
-### Step 5: 宏观环境特征注入
+### Step 5: 宏观环境特征
 
 - **操作**：按日期左连接宏观数据，并使用 `ffill()` 向前填充。
 
@@ -56,7 +54,7 @@
 
 ### Step 6: 消除幸存者偏差 (Survivorship Bias Eradication)
 
-- **操作**：放弃低效的 Pandas `merge` 和 `for` 循环，采用底层 **NumPy 向量化布尔掩码 (Boolean Mask)** 和 `zip` 迭代器。提取去重后的历史纳入/剔除名单，瞬间过滤出有效数据。
+- **操作**：放弃低效的 Pandas `merge` 和 `for` 循环，采用底层 **NumPy 向量化布尔掩码 (Boolean Mask)** 和 `zip` 迭代器。提取去重后的历史纳入/剔除名单，过滤出有效数据。
 
 - **Why**：
   
